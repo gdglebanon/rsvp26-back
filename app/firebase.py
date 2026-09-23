@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from functools import lru_cache
 
@@ -12,11 +13,20 @@ from app.record_metadata import missing_metadata
 @lru_cache
 def firebase_app():
     settings = get_settings()
-    cred = (
-        credentials.Certificate(settings.firebase_credentials_path)
-        if settings.firebase_credentials_path
-        else credentials.ApplicationDefault()
-    )
+    if settings.firebase_credentials_json:
+        try:
+            certificate = json.loads(settings.firebase_credentials_json.get_secret_value())
+        except json.JSONDecodeError:
+            raise ValueError(
+                "FIREBASE_CREDENTIALS_JSON must be valid service-account JSON"
+            ) from None
+        if not isinstance(certificate, dict):
+            raise ValueError("FIREBASE_CREDENTIALS_JSON must be a service-account JSON object")
+        cred = credentials.Certificate(certificate)
+    elif settings.firebase_credentials_path:
+        cred = credentials.Certificate(settings.firebase_credentials_path)
+    else:
+        cred = credentials.ApplicationDefault()
     # Named app avoids interfering with other Admin SDK users in the process.
     return firebase_admin.initialize_app(
         cred, {"projectId": settings.firebase_project_id}, name="rsvp-backend"

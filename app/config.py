@@ -11,6 +11,7 @@ class Settings(BaseSettings):
         env_file=Path(__file__).resolve().parents[1] / ".env", extra="ignore"
     )
     firebase_credentials_path: str | None = None
+    firebase_credentials_json: SecretStr | None = None
     firebase_project_id: str = "rsvp-revamp"
     firebase_database_id: str = "(default)"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]

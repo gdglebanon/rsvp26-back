@@ -2,6 +2,8 @@
 
 FastAPI + Firebase backend, connected to the [React/Vite frontend](https://github.com/gdglebanon/rsvp26-front), located at `../rsvp-gdg` in the combined local workspace. The registration form opens immediately. A debounced, rate-limited email-presence lookup prompts returning attendees to verify. Returning attendees use compact Google/email-link buttons below the email field. Unverified submissions are saved immediately in Firestore and then display the verification popup. **Only Firebase-verified identities can load private saved data, own a canonical user profile, or receive an event ticket.** AI screening is intentionally omitted.
 
+For the production domains and exact Vercel environment settings, follow [DEPLOYMENT.md](DEPLOYMENT.md). Vercel credentials use the backend-only `FIREBASE_CREDENTIALS_JSON` variable; local development can continue using `FIREBASE_CREDENTIALS_PATH`.
+
 ## Start
 
 Python 3.11+ is required. This workspace has dependencies installed and an ignored `.env` configured with the supplied service-account path, the existing Firebase web app's public config, and generated local signing secrets.
