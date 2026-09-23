@@ -251,6 +251,17 @@ class RegistrationService:
 
         return self.store.atomic(operation)
 
+    def requires_registration_login(self, email, tx=None):
+        def check(unit):
+            owner = unit.get(f"{self.root}/emailOwners/{digest(email)}")
+            if not owner:
+                return False
+            ticket = unit.get(self.ticket_path(digest(owner["uid"])))
+            return bool(ticket and ticket.get("email") == email
+                        and ticket.get("emailVerified") is True)
+
+        return check(tx) if tx is not None else self.store.atomic(check)
+
     def save_unverified(self, request, ip):
         self.require_open()
         self.rate_limit(f"unverified-ip:{ip}", limit=20)
@@ -266,6 +277,8 @@ class RegistrationService:
         now = self.clock()
 
         def operation(tx):
+            if self.requires_registration_login(request.email, tx):
+                raise HTTPException(409, "Login is necessary to continue your registration.")
             existing = tx.get(path)
             if existing and (existing["email"] != request.email or existing["emailVerified"]):
                 raise HTTPException(

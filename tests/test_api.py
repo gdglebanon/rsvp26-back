@@ -464,7 +464,7 @@ def test_public_email_lookup_returns_presence_only_and_is_rate_limited(env):
         seen.append((email, event)) or email == "attendee@example.com"
     )
     response = client.post("/api/identity/lookup", json={"email": "Attendee@example.com"})
-    assert response.json() == {"exists": True}
+    assert response.json() == {"exists": True, "loginRequired": False}
     assert seen == [("attendee@example.com", service.settings.event_id)]
     assert client.get("/api/me").status_code == 401
     assert client.post("/api/register", json={}).status_code == 401
@@ -587,11 +587,11 @@ def test_saved_unverified_form_completes_after_matching_firebase_verification(en
 
 def test_anonymous_pending_form_cannot_overwrite_existing_registration(env, payload):
     client, _, _, _ = env
+    untrusted = deepcopy(payload)
+    untrusted["form"]["firstName"] = "Untrusted replacement"
+    pending = client.post("/api/pending", json={**untrusted, "submissionKey": "c" * 64}).json()
+    # A registration may be verified after an anonymous draft was saved.
     ticket = submit(client, payload)
-    app.dependency_overrides.pop(current_identity)
-    payload["form"]["firstName"] = "Untrusted replacement"
-    pending = client.post("/api/pending", json={**payload, "submissionKey": "c" * 64}).json()
-    login()
     response = client.post("/api/pending/complete", json={"id": pending["id"]})
     assert response.json()["id"] == ticket["id"]
     assert client.get("/api/me").json()["profile"]["firstName"] == "Alex"
@@ -679,3 +679,28 @@ def test_pending_verification_dates_and_completion_retry(env, payload):
     now[0] += timedelta(minutes=1)
     assert client.post("/api/pending/complete", json={"id": pending["id"]}).status_code == 200
     assert store.records[path] == completed
+
+
+@pytest.mark.parametrize("record_type", ["profile", "unverified", "verified", "other_event"])
+def test_registration_login_requires_verified_current_event_submission(env, payload, record_type):
+    client, store, service, _ = env
+    store.known_email = lambda email, event: True
+    email = payload["email"]
+    store.records[f"attendeeProfiles/{digest(email)}"] = {"email": email, "emailVerified": True}
+    if record_type in ("verified", "other_event"):
+        from app.models import RegistrationRequest
+        service.submit(RegistrationRequest.model_validate(payload), Identity(uid="user-1", email=email))
+        if record_type == "other_event":
+            service.root = "events/another-event"
+    body = {**payload, "submissionKey": "a" * 64}
+    if record_type == "unverified":
+        assert client.post("/api/pending", json=body).status_code == 201
+    lookup = client.post("/api/identity/lookup", json={"email": email})
+    assert lookup.json()["loginRequired"] is (record_type == "verified")
+    response = client.post("/api/pending", json=body)
+    if record_type == "verified":
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Login is necessary to continue your registration."
+        assert not any(key.startswith("pendingRegistrations/") for key in store.records)
+    else:
+        assert response.status_code == 201

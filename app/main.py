@@ -233,7 +233,10 @@ def lookup_email(body: EmailLookupRequest, request: Request, service: ServiceDep
     ip = request.client.host if request.client else "unknown"
     service.rate_limit(f"lookup-ip:{ip}", limit=60)
     email = str(body.email).strip().lower()
-    return {"exists": service.store.known_email(email, service.settings.event_id)}
+    return {
+        "exists": service.store.known_email(email, service.settings.event_id),
+        "loginRequired": service.requires_registration_login(email),
+    }
 
 
 @app.post("/api/auth/otp/request", tags=["Identity"])
