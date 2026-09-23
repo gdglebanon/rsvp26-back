@@ -704,3 +704,54 @@ def test_registration_login_requires_verified_current_event_submission(env, payl
         assert not any(key.startswith("pendingRegistrations/") for key in store.records)
     else:
         assert response.status_code == 201
+
+
+@pytest.mark.parametrize("prior_status", ["submitted", "invited", "confirmed", "vip"])
+def test_cancelled_application_resubmits_for_review(env, payload, prior_status):
+    client, store, service, now = env
+    if prior_status == "vip":
+        service.settings.vip_code_hashes = [digest("vip-code")]
+        payload["form"]["secretCode"] = "vip-code"
+    ticket = submit(client, payload)
+    token = None
+    if prior_status in ("invited", "confirmed"):
+        ticket = invite(client, ticket)
+        token = client.get("/api/invitations/current").json()["token"]
+        if prior_status == "confirmed":
+            ticket = client.post("/api/invitations/confirm", json={"token": token}).json()
+    cancelled = client.post("/api/registration/cancel", json={"version": ticket["version"]}).json()
+    path = service.ticket_path(ticket["id"])
+    old = deepcopy(store.records[path])
+    now[0] += timedelta(minutes=1)
+    payload["form"]["firstName"] = "Resubmitted"
+    response = client.put("/api/registration", json={**payload, "version": cancelled["version"]})
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["status"] == "submitted"
+    assert result["id"] == ticket["id"]
+    assert result["version"] == cancelled["version"] + 1
+    stored = store.records[path]
+    assert stored["createdAt"] == old["createdAt"]
+    assert stored["nonce"] != old["nonce"]
+    assert "confirmedAt" not in stored
+    assert "invitationExpiresAt" not in stored
+    session = client.get("/api/me").json()
+    assert session["ticket"]["status"] == "submitted"
+    assert session["profile"]["firstName"] == "Resubmitted"
+    jobs = [job for key, job in store.records.items()
+            if key.startswith("rsvpOutbox/") and job["version"] == result["version"]]
+    assert {job["kind"] for job in jobs} == {"sheet", "submission_email"}
+    assert client.put("/api/registration", json={**payload, "version": cancelled["version"]}).status_code == 409
+    assert client.get("/api/ticket/qr").status_code == 409
+    if token:
+        assert client.post("/api/invitations/confirm", json={"token": token}).status_code == 403
+
+
+def test_cancelled_application_cannot_resubmit_after_registration_closes(env, payload):
+    client, store, service, _ = env
+    ticket = submit(client, payload)
+    cancelled = client.post("/api/registration/cancel", json={"version": ticket["version"]}).json()
+    service.settings.force_close_registration = True
+    response = client.put("/api/registration", json={**payload, "version": cancelled["version"]})
+    assert response.status_code == 403
+    assert store.records[service.ticket_path(ticket["id"])]["status"] == "cancelled"

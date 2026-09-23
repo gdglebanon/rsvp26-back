@@ -181,6 +181,9 @@ class RegistrationService:
                 raise HTTPException(409, "Registration changed; reload before editing")
             if existing and existing.get("checkedInAt"):
                 raise HTTPException(409, "Checked-in registrations cannot be edited")
+            resubmitting = bool(existing and existing["status"] == "cancelled")
+            if resubmitting:
+                self.require_open()
             profile = {key: form[key] for key in PROFILE_FIELDS}
             answers = {
                 key: value
@@ -200,7 +203,10 @@ class RegistrationService:
                 "version": 1,
                 "nonce": nonce,
             }
-            if existing:
+            if resubmitting:
+                ticket["status"] = "submitted"
+                ticket["version"] = existing["version"] + 1
+            elif existing:
                 ticket.update(
                     {
                         key: existing[key]
