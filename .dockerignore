@@ -1,0 +1,11 @@
+.env
+.env.*
+.venv
+.git
+__pycache__
+.pytest_cache
+.ruff_cache
+.credentials
+*firebase-adminsdk*.json
+*serviceAccount*.json
+tests
