@@ -102,6 +102,7 @@ def config(settings: SettingsDep):
         "eventName": settings.event_name,
         "registrationDeadline": settings.registration_deadline,
         "registrationOpen": RegistrationService(None, settings).is_open(),
+        "emailAuth": {"method": "password", "verificationRequired": True},
         "otpAvailable": settings.mail_provider != "disabled" and bool(settings.mail_from),
         "firebase": {
             "apiKey": settings.firebase_web_api_key,

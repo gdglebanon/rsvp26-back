@@ -309,7 +309,8 @@ def test_firebase_auth_verifies_revocation_and_email(env, monkeypatch, payload):
 
     client, _, _, _ = env
     monkeypatch.setattr(module, "firebase_app", lambda: "firebase-app")
-    claims = {"uid": "user-1", "email": payload["email"], "email_verified": False}
+    claims = {"uid": "user-1", "email": payload["email"], "email_verified": False,
+              "firebase": {"sign_in_provider": "password"}}
 
     def verify(token, **kwargs):
         assert token == "test-token"
@@ -319,7 +320,10 @@ def test_firebase_auth_verifies_revocation_and_email(env, monkeypatch, payload):
     monkeypatch.setattr(module.auth, "verify_id_token", verify)
     headers = {"Authorization": "Bearer test-token"}
     assert client.post("/api/register", json=payload, headers=headers).status_code == 403
+    assert client.get("/api/me", headers=headers).status_code == 403
+    assert client.post("/api/pending/complete", json={"id": "a" * 64}, headers=headers).status_code == 403
     claims["email_verified"] = True
+    assert client.get("/api/me", headers=headers).status_code == 200
     assert client.post("/api/register", json=payload, headers=headers).status_code == 200
 
 
