@@ -177,3 +177,11 @@ class UnverifiedRegistrationRequest(RegistrationRequest):
 
 class CompletePendingRequest(StrictModel):
     id: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class EmailVerificationRequest(EmailLookupRequest):
+    pendingId: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+
+class EmailVerificationCompleteRequest(StrictModel):
+    code: str = Field(min_length=1, max_length=2048, repr=False)

@@ -74,7 +74,7 @@ Open Firebase project `rsvp-revamp` → Authentication:
 
 1. In Settings → Authorized domains, add `rsvp.gdglebanon.com` (hostname only).
 2. In Sign-in method, confirm Google is enabled.
-3. Enable Email/Password. Use the default Firebase-hosted action handler for the Email address verification and Password reset templates. Email link (passwordless sign-in) is no longer used for new emails and can be disabled after outstanding links expire.
+3. In Authentication → Templates → Email address verification, set **Customize action URL** to `https://rsvp.gdglebanon.com/`. The frontend must receive the original `mode=verifyEmail` and `oobCode`; the default Firebase handler would consume the code before the backend can exchange it for a session. New emails use `VERIFY_EMAIL`, not passwordless sign-in; Email link sign-in need not be enabled. Ensure the backend API key permits Identity Toolkit calls and its Admin credentials can mint custom tokens.
 4. Keep `FIREBASE_AUTH_DOMAIN=rsvp-revamp.firebaseapp.com`; setting it to your custom frontend domain would require additional Firebase auth hosting/proxy configuration.
 
 The app creates the email continuation URL from the domain where the user signs in. On production it returns to `https://rsvp.gdglebanon.com/?auth=callback` and includes the pending submission ID when needed.
@@ -89,7 +89,7 @@ Check:
 2. `https://rsvp26-back-ktwg.vercel.app/ready` → `{"status":"ready"}`; this also checks Firebase connectivity.
 3. `https://rsvp26-back-ktwg.vercel.app/api/config` → JSON with nonempty Firebase `apiKey` and `appId`.
 4. Open `https://rsvp.gdglebanon.com/` and hard-refresh. JavaScript/CSS requests should be under `/assets/` and return 200.
-5. Test Google sign-in or email/password signup followed by email verification with your own account; returning data must appear only after sign-in. Submit a test only when you intend to create a registration.
+5. Test Google verification or an email verification link with your own email; returning data must appear only after sign-in. Submit a test only when you intend to create a registration.
 
 The backend's bare `/` may return FastAPI's JSON 404 because no root page is defined. Vercel's plain-text `NOT_FOUND` at `/health` indicates a deployment/framework/root-directory problem. A 500 or failed `/ready` indicates an application/environment problem: inspect the backend runtime logs. Browser CORS errors mean `CORS_ORIGINS` or the backend's public deployment access needs checking. An authentication screen or 401 from Vercel itself means deployment protection is blocking browser API access; allow public access to the intended production API.
 

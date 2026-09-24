@@ -14,6 +14,7 @@ from google.api_core.exceptions import GoogleAPICallError
 
 from app.auth import current_identity, organizer_identity
 from app.config import Settings, get_settings
+from app.email_verification import EmailVerificationService
 from app.firebase import FirestoreStore, get_store
 from app.integrations import qr_png
 from app.models import (
@@ -22,6 +23,8 @@ from app.models import (
     ConfirmRequest,
     CurationRequest,
     EmailLookupRequest,
+    EmailVerificationCompleteRequest,
+    EmailVerificationRequest,
     Identity,
     OTPVerifyRequest,
     RegistrationRequest,
@@ -102,7 +105,7 @@ def config(settings: SettingsDep):
         "eventName": settings.event_name,
         "registrationDeadline": settings.registration_deadline,
         "registrationOpen": RegistrationService(None, settings).is_open(),
-        "emailAuth": {"method": "password", "verificationRequired": True},
+        "emailAuth": {"method": "verificationLink", "verificationRequired": True},
         "otpAvailable": settings.mail_provider != "disabled" and bool(settings.mail_from),
         "firebase": {
             "apiKey": settings.firebase_web_api_key,
@@ -263,3 +266,20 @@ def save_unverified(body: UnverifiedRegistrationRequest, request: Request, servi
 @app.post("/api/pending/complete", tags=["Registration"])
 def complete_pending(body: CompletePendingRequest, identity: IdentityDep, service: ServiceDep):
     return service.complete_pending(body.id, identity)
+
+
+@app.post("/api/auth/email/request", tags=["Identity"])
+def request_email_verification(body: EmailVerificationRequest, request: Request, service: ServiceDep):
+    return EmailVerificationService(service).request(
+        str(body.email).strip().lower(), body.pendingId,
+        request.client.host if request.client else "unknown",
+    )
+
+
+@app.post("/api/auth/email/complete", tags=["Identity"])
+def complete_email_verification(
+    body: EmailVerificationCompleteRequest, request: Request, service: ServiceDep,
+):
+    return EmailVerificationService(service).complete(
+        body.code, request.client.host if request.client else "unknown",
+    )
